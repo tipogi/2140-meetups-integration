@@ -1,0 +1,3 @@
+TODOs (✔/☐)
+
+☐ How to check if the script is taking the right city (or town), once the community is created, not approved (MIGHT BE MANUAL). Once we approve, it has to be decided which is going to be the `osm_id`
