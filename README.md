@@ -1,11 +1,11 @@
-# 2140-meetups-integration
+# 2140 meetups integrations
 
-<p align="center"><img src="./docs/assets/rust-cover.png" alt="integration cover"></p>
+<p align="center"><img src="./docs/assets/cover.png" alt="integration cover"></p>
 
 A container that creates different JSON files for specific purpose:
 
 1. Create a global OSM map to display all the communities of [2140 meetups](https://2140meetups.com/). The creation of each point will be based on the communities that stores the 2140 meetups data base
-2. Create individual files for each community that after btc maps will be able to render in its map. That data will be available through an API endpoint
+2. Create individual files for each community that after [BTC Maps](https://btcmap.org/) will render in its own map. That data will be available through an API endpoint
 
 ## Spin up the container
 
