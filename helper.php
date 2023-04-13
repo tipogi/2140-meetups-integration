@@ -6,8 +6,8 @@ define("BTCMAPS_FOLDER", __DIR__ . '/btcmaps/');
 # BTC MAP integration constants
 const NOMINATIM_OPENSTREETMAP = "https://nominatim.openstreetmap.org/search?format=json&polygon_geojson=1&polygon_threshold=0.0003&city=%s&country=%s&email=hello@2140meetups.com&addressdetails=1&extratags=1";
 const COUNTRY_CODE = "https://countrycode.dev/api/countries/iso2/%s";
-const POLYGONS_OPENSTREETMAP_MAP_GENERATION = "https://polygons.openstreetmap.fr/?id=%s";
 const POLYGONS_OPENSTREETMAP = "https://polygons.openstreetmap.fr/get_geojson.py?id=%s&params=0.020000-0.005000-0.005000";
+const POLYGONS_OPENSTREETMAP_MAP_GENERATION = "https://polygons.openstreetmap.fr/?id=%s";
 
 // Deprecated
 const CITY_NINJA = "https://api.api-ninjas.com/v1/city?name=%s";
@@ -139,6 +139,7 @@ function extract_local_data($community)
 	return array(
 		"id"	=> "2140_meetups_" . $community["id"],
 		"tags"	=> array(
+			"contact:email" 	=> $community["email"],
 			"contact:telegram" 	=> $community["telegram"],
 			"icon:square"		=> $community["imagen"],
 			"name"				=> $community["nombre"],
@@ -248,8 +249,15 @@ function get_city_area($osm_id)
 {
 	// Generate the area that we want with a POST request
 	$POST_POLYGONS = sprintf(POLYGONS_OPENSTREETMAP_MAP_GENERATION, $osm_id);
+	// Create the body for the POST request
+	$body = array(
+		'x' => '0.020000',
+		'y' => '0.005000',
+		'z' => '0.005000'
+	);
 	// We do not care the response because we just want that it would be avaible that area
-	make_post_request($POST_POLYGONS);
+	// AIM: Create the need it area JSON file
+	make_post_request($POST_POLYGONS, $body);
 
 	// Once the JSON of area is generated, request it
 	$GET_POLYGONS = sprintf(POLYGONS_OPENSTREETMAP, $osm_id);
@@ -322,6 +330,10 @@ function preview_remote_results_header()
 // ############### HELPER FUNCTIONS ######################
 // #######################################################
 
+/**
+ * Some API endpoints does not understand tildes
+ * @param chain: The word that we want to edit 
+ */
 function delete_tilde($chain) 
 {
 	// We encode the string in utf8 format in case we get errors
@@ -388,20 +400,15 @@ function make_get_request($url, $headers = array())
 /**
  * A generic POST request
  * @param $url: API endpoint
- * @param $header: Extra headers of the request
+ * @param $body: Request body
  */
-function make_post_request($url)
+function make_post_request($url, $body)
 {
 	$ch = curl_init();
 
 	curl_setopt($ch, CURLOPT_POST, 1);
 	curl_setopt($ch, CURLOPT_URL, $url);
 	// Populate the body of the request with hard coded constants
-	$body = array(
-		'x' => '0.020000',
-		'y' => '0.005000',
-		'z' => '0.005000'
-	);
 	curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($body));
 	// Activate, if not it prints in the console
     curl_setopt( $ch, CURLOPT_RETURNTRANSFER, true );
