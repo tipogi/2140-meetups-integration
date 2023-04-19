@@ -4,7 +4,8 @@
 define("LEAFLET_FILE", __DIR__ . '/leaflet/geo.json');
 define("BTCMAP_FOLDER", __DIR__ . '/btcmaps/');
 # BTC MAP integration constants
-const NOMINATIM_OPENSTREETMAP = "https://nominatim.openstreetmap.org/search?format=json&polygon_geojson=1&polygon_threshold=0.0003&city=%s&country=%s&email=hello@2140meetups.com&addressdetails=1&extratags=1";
+const NOMINATIM_OPENSTREETMAP_SEARCH = "https://nominatim.openstreetmap.org/search?format=json&polygon_geojson=1&polygon_threshold=0.0003&city=%s&country=%s&email=hello@2140meetups.com&addressdetails=1&extratags=1";
+const NOMINATIM_OPENSTREETMAP_LOOKUP = "https://nominatim.openstreetmap.org/lookup?osm_ids=R&s&format=json&extratags=1&addressdetails=1"
 const COUNTRY_CODE = "https://countrycode.dev/api/countries/iso2/%s";
 const POLYGONS_OPENSTREETMAP = "https://polygons.openstreetmap.fr/get_geojson.py?id=%s&params=0.020000-0.005000-0.005000";
 const POLYGONS_OPENSTREETMAP_MAP_GENERATION = "https://polygons.openstreetmap.fr/?id=%s";
@@ -159,7 +160,7 @@ function request_remote_data($city, $country)
 {
 	$location = encode_community_location($city, $country);
 
-	$URL_NOMINATIM = sprintf(NOMINATIM_OPENSTREETMAP, $location["city"], $location["country"]);
+	$URL_NOMINATIM = sprintf(NOMINATIM_OPENSTREETMAP_SEARCH, $location["city"], $location["country"]);
 	$community_metadata = get_community_metadata($URL_NOMINATIM, $city);
 	
 	// Once we have the osm_id, request area of the city
