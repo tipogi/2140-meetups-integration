@@ -1,15 +1,18 @@
 <?
 	include './main.php';
 	include './helper.php';
+	include './osm_fetch.php';
 
 	const CREATE_LEAFLET_JSON = false;
 	const CREATE_BTCMAP_JSON = true;
 
 	const COMMUNITIES_ENDPOINT = "http://2140meetups.com/wp-json/wp/v2/community?per_page=100";
 
+
 	function main()
 	{
 		$communities = fetch_all_the_communities();
+		$osm_ids = array();
 
 		if (CREATE_LEAFLET_JSON)
 		{
@@ -61,9 +64,7 @@
 			print_r("\nEND creating BTCMAP JSON");
 		}
 	}
-
 	
-
 	/**
 	 * Fetch all the communities of 2140 meetups
 	 */

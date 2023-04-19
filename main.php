@@ -128,13 +128,15 @@
 		// Extract from local data the missing attributes
 		$local_data = extract_local_data($row);
 		$btc_maps_community = merge_remote_and_local_data($remote_data, $local_data);
+
 		// Before create the JSON file, clear up some attributes
-		unset($continent_object["osm_id"]);
+		unset($btc_maps_community["tags"]["osm_id"]);
 
 		// Decode the JSON file
 		$btc_maps_json = json_encode($btc_maps_community, JSON_UNESCAPED_SLASHES);
 		// Create or update the file
 		update_btc_map_area_file($file_name, $btc_maps_json);
+		
 		return $btc_maps_community;
 	}
 

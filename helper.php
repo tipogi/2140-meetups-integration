@@ -2,7 +2,7 @@
 
 # Files and folders
 define("LEAFLET_FILE", __DIR__ . '/leaflet/geo.json');
-define("BTCMAPS_FOLDER", __DIR__ . '/btcmaps/');
+define("BTCMAP_FOLDER", __DIR__ . '/btcmaps/');
 # BTC MAP integration constants
 const NOMINATIM_OPENSTREETMAP = "https://nominatim.openstreetmap.org/search?format=json&polygon_geojson=1&polygon_threshold=0.0003&city=%s&country=%s&email=hello@2140meetups.com&addressdetails=1&extratags=1";
 const COUNTRY_CODE = "https://countrycode.dev/api/countries/iso2/%s";
@@ -181,8 +181,7 @@ function request_remote_data($city, $country)
 function get_community_metadata($url, $city) 
 {
 	// Execute the request
-	$nominatim_response = make_get_request($url);
-	$location_metadata = json_decode($nominatim_response);
+	$location_metadata = make_get_request($url);
 	$osm_id = null;
 	
 	$nominatim_key = has_default_index($city);
@@ -199,27 +198,35 @@ function get_community_metadata($url, $city)
 
 		$country_code = $location_metadata[$nominatim_key]->address->country_code;
 		$url = sprintf(COUNTRY_CODE, strtoupper($country_code));
-		// Execute the request
-		$country_code_response = make_get_request($url);
+
+		// Might not have the population date
+		$population_date = property_exists($location_metadata[$nominatim_key]->extratags, 'population:date') ? 
+			$location_metadata[$nominatim_key]->extratags->{'population:date'} 
+			: 'na';
+
+		$city = get_city($location_metadata[$nominatim_key]->address);
+
+		$nominatim_object = array(
+			"osm_id"	 		=> $osm_id,
+			"continent"  		=> $parsed_nominatim_result[$nominatim_key]->continent,
+			"population"		=> $location_metadata[$nominatim_key]->extratags->population,
+			"population:date"	=> $$population_date,
+			// Extra data
+			"address"	 		=> $city . ", " . $location_metadata[$nominatim_key]->address->country,
+		);
 		
-		$parsed_nominatim_result = json_decode($country_code_response);
+		// Execute the request
+		$parsed_nominatim_result = make_get_request($url);
 
 		if (
 			!empty($parsed_nominatim_result) && 
 			array_key_exists(0, $parsed_nominatim_result) &&
 			property_exists($parsed_nominatim_result[0], "continent")) 
 		{
-			$city = get_city($location_metadata[$nominatim_key]->address);
-
-			return array(
-				"osm_id"	 		=> $osm_id,
-				"continent"  		=> $parsed_nominatim_result[$nominatim_key]->continent,
-				"population"		=> $location_metadata[$nominatim_key]->extratags->population,
-				"population:date"	=> $location_metadata[$nominatim_key]->extratags->{'population:date'},
-				// Extra data
-				"address"	 		=> $city . ", " . $location_metadata[$nominatim_key]->address->country,
-			);
+			$nominatim_object["continent"] = $parsed_nominatim_result[$nominatim_key]->continent;
 		}
+
+		return $nominatim_object;
 	}
 	return array(
 		"osm_id"	=> $osm_id,
@@ -261,8 +268,7 @@ function get_city_area($osm_id)
 
 	// Once the JSON of area is generated, request it
 	$GET_POLYGONS = sprintf(POLYGONS_OPENSTREETMAP, $osm_id);
-	$area_response = make_get_request($GET_POLYGONS);
-	$parsed_area_result = json_decode($area_response);
+	$parsed_area_result = make_get_request($GET_POLYGONS);
 
 	return array(
 		"geojson" => $parsed_area_result
@@ -394,7 +400,7 @@ function make_get_request($url, $headers = array())
 	$response = curl_exec($ch);
 	// Clear up CURL
     curl_close($ch);
-	return $response;
+	return json_decode($response);
 }
 
 /**
@@ -427,7 +433,7 @@ function make_post_request($url, $body)
  */
 function update_btc_map_area_file($file_name, $json_area)
 {
-	file_put_contents(BTCMAPS_FOLDER . $file_name, $json_area);
+	file_put_contents(BTCMAP_FOLDER . $file_name, $json_area);
 }
 
 /**
@@ -435,7 +441,7 @@ function update_btc_map_area_file($file_name, $json_area)
  */
 function get_community_file($file_name)
 {
-	$community_json = file_get_contents(BTCMAPS_FOLDER . $file_name);
+	$community_json = file_get_contents(BTCMAP_FOLDER . $file_name);
 	// Decode the JSON file
 	$community = json_decode($community_json, true);
 	return $community;
