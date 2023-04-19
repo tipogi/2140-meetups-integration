@@ -4,8 +4,8 @@
 	include './osm_fetch.php';
 
 	const CREATE_LEAFLET_JSON = false;
-	const CREATE_BTCMAP_JSON = false;
-	const SHOW_OSM_ID_COMMUNITY = true;
+	const CREATE_BTCMAP_JSON = true;
+	const SHOW_OSM_ID_COMMUNITY = false;
 
 	const COMMUNITIES_ENDPOINT = "http://2140meetups.com/wp-json/wp/v2/community?per_page=100";
 
@@ -48,7 +48,7 @@
 			{
 				$new_community = array(
 					"id"		=> $community->id,
-					//"osm_id"	=> $community->osm_id,
+					"osm_id"	=> $community->osm_id,
 					"email"		=> "privacy@policy.org",
 					"telegram"	=> $community->telegram,
 					"imagen"	=> "https://2140meetups.com/wp-content/uploads/2023/02/639b9f9c3841d3112e52d79a_website-banner-image3-p-2000.png",

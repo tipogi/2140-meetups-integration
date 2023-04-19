@@ -4,8 +4,7 @@
 define("LEAFLET_FILE", __DIR__ . '/leaflet/geo.json');
 define("BTCMAP_FOLDER", __DIR__ . '/btcmaps/');
 # BTC MAP integration constants
-const NOMINATIM_OPENSTREETMAP_SEARCH = "https://nominatim.openstreetmap.org/search?format=json&polygon_geojson=1&polygon_threshold=0.0003&city=%s&country=%s&email=hello@2140meetups.com&addressdetails=1&extratags=1";
-const NOMINATIM_OPENSTREETMAP_LOOKUP = "https://nominatim.openstreetmap.org/lookup?osm_ids=R&s&format=json&extratags=1&addressdetails=1"
+const NOMINATIM_OPENSTREETMAP = "https://nominatim.openstreetmap.org/details.php?osmtype=R&osmid=%s&format=json&addressdetails=1&extratags=1&email=hello@2140meetups.com";
 const COUNTRY_CODE = "https://countrycode.dev/api/countries/iso2/%s";
 const POLYGONS_OPENSTREETMAP = "https://polygons.openstreetmap.fr/get_geojson.py?id=%s&params=0.020000-0.005000-0.005000";
 const POLYGONS_OPENSTREETMAP_MAP_GENERATION = "https://polygons.openstreetmap.fr/?id=%s";
@@ -13,6 +12,7 @@ const POLYGONS_OPENSTREETMAP_MAP_GENERATION = "https://polygons.openstreetmap.fr
 // Deprecated
 const CITY_NINJA = "https://api.api-ninjas.com/v1/city?name=%s";
 const NINJA_API_KEY = "X-Api-Key: xxxxxxxxxxxx";
+const NOMINATIM_OPENSTREETMAP_SEARCH = "https://nominatim.openstreetmap.org/search?format=json&polygon_geojson=1&polygon_threshold=0.0003&city=%s&country=%s&email=hello@2140meetups.com&addressdetails=1&extratags=1";
 
 // ---------------------------------------------------------------------------
 // ################## GENERATE DATA FOR GEO.JSON FILE ################## 
@@ -152,69 +152,53 @@ function extract_local_data($community)
 
 /**
  * Add remote content of the community to serve to btcmap request
- * @param: city
- * @param: country
+ * @param: osm_id
  * return array
  */
-function request_remote_data($city, $country)
+function request_remote_data($osm_id)
 {
-	$location = encode_community_location($city, $country);
+	$URL_NOMINATIM = sprintf(NOMINATIM_OPENSTREETMAP, $osm_id);
+	$community_metadata = get_community_metadata($URL_NOMINATIM, $osm_id, $city);
 
-	$URL_NOMINATIM = sprintf(NOMINATIM_OPENSTREETMAP_SEARCH, $location["city"], $location["country"]);
-	$community_metadata = get_community_metadata($URL_NOMINATIM, $city);
-	
-	// Once we have the osm_id, request area of the city
-	// IMPORTANT step that one because the first query to nominatim will be using city and country, 
-	// After that, all the queries will use the osm_id not city name
-	$geo_json_polygon = get_city_area($community_metadata["osm_id"]);
+	$geo_json_polygon = get_city_area($osm_id);
 
 	$remote_data = array_merge($community_metadata, $geo_json_polygon);
 
-	preview_remote_results($remote_data, $city, $country);
+	preview_remote_results($remote_data);
 
 	return $remote_data;
 }
 
 /**
- * Prepare the area request for nominatim
+ * Get the city population and continent
  * @param $url: The request url
  */
-function get_community_metadata($url, $city) 
+function get_community_metadata($url, $osm_id, $city) 
 {
 	// Execute the request
 	$location_metadata = make_get_request($url);
-	$osm_id = null;
 	
-	$nominatim_key = has_default_index($city);
+	$nominatim_key = 0;
 
 	// Error control if we get the right nominatim response
 	if (
 		!empty($location_metadata) && 
-		array_key_exists($nominatim_key, $location_metadata) &&
-		property_exists($location_metadata[$nominatim_key], "address") &&
-		property_exists($location_metadata[$nominatim_key]->address, "country_code"))
+		property_exists($location_metadata, "country_code") &&
+		property_exists($location_metadata, "extratags"))
 	{
-		// Important variable for community area
-		$osm_id = $location_metadata[$nominatim_key]->osm_id;
-
-		$country_code = $location_metadata[$nominatim_key]->address->country_code;
-		$url = sprintf(COUNTRY_CODE, strtoupper($country_code));
-
+		print_r($location_metadata->extratags);
 		// Might not have the population date
-		$population_date = property_exists($location_metadata[$nominatim_key]->extratags, 'population:date') ? 
-			$location_metadata[$nominatim_key]->extratags->{'population:date'} 
+		$population_date = property_exists($location_metadata->extratags, "population:date") ? 
+			$location_metadata->extratags->{'population:date'} 
 			: 'na';
 
-		$city = get_city($location_metadata[$nominatim_key]->address);
-
 		$nominatim_object = array(
-			"osm_id"	 		=> $osm_id,
-			"continent"  		=> $parsed_nominatim_result[$nominatim_key]->continent,
-			"population"		=> $location_metadata[$nominatim_key]->extratags->population,
-			"population:date"	=> $$population_date,
-			// Extra data
-			"address"	 		=> $city . ", " . $location_metadata[$nominatim_key]->address->country,
+			"population"		=> $location_metadata->extratags->population,
+			"population:date"	=> $population_date,
 		);
+
+		$country_code = $location_metadata->country_code;
+		$url = sprintf(COUNTRY_CODE, strtoupper($country_code));
 		
 		// Execute the request
 		$parsed_nominatim_result = make_get_request($url);
@@ -230,9 +214,8 @@ function get_community_metadata($url, $city)
 		return $nominatim_object;
 	}
 	return array(
-		"osm_id"	=> $osm_id,
-		"continent" => "",
-		"address"	=> ""
+		"continent" 	=> "",
+		"population"	=> ""
 	);
 }
 
@@ -320,16 +303,16 @@ function encode_community_location($city, $country)
 	);
 }
 
-function preview_remote_results($remote_data, $city, $country)
+function preview_remote_results($remote_data)
 {
 	$area = empty($remote_data["geojson"]) ? "NO" : "YES";
-	print_r($remote_data["osm_id"] . "\t\t" . $area . "\t\t" . $remote_data["population"] . "\t\t" . $remote_data["continent"] . "\t\t\t" . $remote_data["address"] . "\n");
-	print_r("=> DB: City: " . $city . ", Country: " . $country . "\n\n");
+	print_r($area . "\t\t" . $remote_data["population"] . "\t\t" . $remote_data["continent"] . "\n");
+	//print_r("=> DB: City: " . $city . ", Country: " . $country . "\n\n");
 }
 
 function preview_remote_results_header()
 {
-	print_r("OSM_ID\t\tHAS AREA\tPOPULATION\tCONTINENT\t\tADDRESS\n");
+	print_r("HAS AREA\tPOPULATION\tCONTINENT\n");
 }
 
 

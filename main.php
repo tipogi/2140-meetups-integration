@@ -124,13 +124,10 @@
 		// Set the file name
 		$file_name = "btc_map_area_" . $row["id"] . ".json";
 		// Extract the info from different APIs
-		$remote_data = request_remote_data($row["ciudad"], $row["pais"]);
+		$remote_data = request_remote_data($row["osm_id"]);
 		// Extract from local data the missing attributes
 		$local_data = extract_local_data($row);
 		$btc_maps_community = merge_remote_and_local_data($remote_data, $local_data);
-
-		// Before create the JSON file, clear up some attributes
-		unset($btc_maps_community["tags"]["osm_id"]);
 
 		// Decode the JSON file
 		$btc_maps_json = json_encode($btc_maps_community, JSON_UNESCAPED_SLASHES);
