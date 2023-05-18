@@ -21,7 +21,14 @@ docker build -t 2140-sandbox .
 
 ```bash
 # add remove option to remove the container when exists
-docker run --rm -v ./btcmaps:/usr/src/2140_geo/btcmaps -v ./leaflet:/usr/src/2140_geo/leaflet --name geo-parser 2140-sandbox
+docker run --rm -v ./btcmaps:/usr/src/2140_geo/btcmaps -v ./leaflet:/usr/src/2140_geo/leaflet --name meetups-integration 2140-sandbox
+```
+
+3.Kill container
+
+```bash
+# In our case the name is meetups-integration
+docker kill container_name
 ```
 
 ## Docker images

@@ -5,7 +5,7 @@ define("LEAFLET_FILE", __DIR__ . '/leaflet/geo.json');
 define("BTCMAP_FOLDER", __DIR__ . '/btcmaps/');
 # BTC MAP integration constants
 const NOMINATIM_OPENSTREETMAP = "https://nominatim.openstreetmap.org/details.php?osmtype=R&osmid=%s&format=json&addressdetails=1&extratags=1&email=hello@2140meetups.com";
-const COUNTRY_CODE = "https://countrycode.dev/api/countries/iso2/%s";
+const CONTINENT_API = "https://restcountries.com/v3.1/name/%s";
 const POLYGONS_OPENSTREETMAP = "https://polygons.openstreetmap.fr/get_geojson.py?id=%s&params=0.020000-0.005000-0.005000";
 const POLYGONS_OPENSTREETMAP_MAP_GENERATION = "https://polygons.openstreetmap.fr/?id=%s";
 
@@ -13,6 +13,7 @@ const POLYGONS_OPENSTREETMAP_MAP_GENERATION = "https://polygons.openstreetmap.fr
 const CITY_NINJA = "https://api.api-ninjas.com/v1/city?name=%s";
 const NINJA_API_KEY = "X-Api-Key: xxxxxxxxxxxx";
 const NOMINATIM_OPENSTREETMAP_SEARCH = "https://nominatim.openstreetmap.org/search?format=json&polygon_geojson=1&polygon_threshold=0.0003&city=%s&country=%s&email=hello@2140meetups.com&addressdetails=1&extratags=1";
+const COUNTRY_CODE = "https://countrycode.dev/api/countries/iso2/%s";
 
 // ---------------------------------------------------------------------------
 // ################## GENERATE DATA FOR GEO.JSON FILE ################## 
@@ -158,7 +159,7 @@ function extract_local_data($community)
 function request_remote_data($osm_id)
 {
 	$URL_NOMINATIM = sprintf(NOMINATIM_OPENSTREETMAP, $osm_id);
-	$community_metadata = get_community_metadata($URL_NOMINATIM, $osm_id, $city);
+	$community_metadata = get_community_metadata($URL_NOMINATIM, $osm_id);
 
 	$geo_json_polygon = get_city_area($osm_id);
 
@@ -173,7 +174,7 @@ function request_remote_data($osm_id)
  * Get the city population and continent
  * @param $url: The request url
  */
-function get_community_metadata($url, $osm_id, $city) 
+function get_community_metadata($url, $osm_id) 
 {
 	// Execute the request
 	$location_metadata = make_get_request($url);
@@ -186,7 +187,6 @@ function get_community_metadata($url, $osm_id, $city)
 		property_exists($location_metadata, "country_code") &&
 		property_exists($location_metadata, "extratags"))
 	{
-		print_r($location_metadata->extratags);
 		// Might not have the population date
 		$population_date = property_exists($location_metadata->extratags, "population:date") ? 
 			$location_metadata->extratags->{'population:date'} 
@@ -197,39 +197,56 @@ function get_community_metadata($url, $osm_id, $city)
 			"population:date"	=> $population_date,
 		);
 
-		$country_code = $location_metadata->country_code;
-		$url = sprintf(COUNTRY_CODE, strtoupper($country_code));
-		
-		// Execute the request
-		$parsed_nominatim_result = make_get_request($url);
+		// Before get the continent, find the country
+		$country = get_city_country($location_metadata);
 
-		if (
-			!empty($parsed_nominatim_result) && 
-			array_key_exists(0, $parsed_nominatim_result) &&
-			property_exists($parsed_nominatim_result[0], "continent")) 
+		if ($country != null)
 		{
-			$nominatim_object["continent"] = $parsed_nominatim_result[$nominatim_key]->continent;
+			$url = sprintf(CONTINENT_API, $country);
+			
+			// Execute the request
+			$parsed_nominatim_result = make_get_request($url);
+	
+			if (
+				!empty($parsed_nominatim_result) && 
+				array_key_exists(0, $parsed_nominatim_result) &&
+				property_exists($parsed_nominatim_result[0], "continents") &&
+				array_key_exists(0, $parsed_nominatim_result[0]->continents)) 
+			{
+				$continent = $parsed_nominatim_result[0]->continents[0];
+				$nominatim_object["continent"] = $continent;
+				$continent_cache[$country] = $continent;
+			}
+		} else
+		{
+			$nominatim_object["continent"] = null;
 		}
-
+		
 		return $nominatim_object;
 	}
 	return array(
-		"continent" 	=> "",
-		"population"	=> ""
+		"continent" 	=> null,
+		"population"	=> null
 	);
 }
 
-/**
- * Not all the request has just one element. Some has more than one and are not in index 0
- * @param $city
- */
-function has_default_index($city)
+function get_city_country($location_metadata) 
 {
-	if ($city === "Retamar")
+	if (property_exists($location_metadata, "address")) 
 	{
-		return 2;
+		foreach ($location_metadata->address as $key => $address)
+		{
+			if ($address->type == "country")
+			{
+				// Some country comes with slashes representing different way to say the country
+				// Delete also confusing spaces for the API at the beginning and end of the country
+				$split_slashes = trim(explode('/', $address->localname)[0]);
+				$delete_white_spaces = str_replace(' ', '%20', $split_slashes);
+				return delete_tilde($split_slashes);
+			}
+		}
 	}
-	return 0;
+	return null;
 }
 
 /**
@@ -257,62 +274,6 @@ function get_city_area($osm_id)
 	return array(
 		"geojson" => $parsed_area_result
 	);
-}
-
-/**
- * In nominatim not all the addresses has city. They might have instead village or town
- * @param $address: The object that has the location metadata
- */
-function get_city($address)
-{
-	if (property_exists($address, "city"))
-	{
-		return $address->city;
-	}
-	else if (property_exists($address, "village"))
-	{
-		return $address->village;
-	} 
-	else if (property_exists($address, "town"))
-	{
-		return $address->town;
-	}
-	return "";
-}
-
-/**
- * If we have composed location format spaces and tildes in case it has
- * @param $city
- * @param $country
- */
-function encode_community_location($city, $country)
-{
-	//print_r("DB => City: ". $city . ", Country: " . $country . "\n");
-	// Delete tildes to avoid empty result
-	$city_without_tilde = delete_tilde($city);
-	// Adapt the spaces to avoid empty result
-	$formatted_city = str_replace(' ', '%20', $city_without_tilde);
-	// Delete tildes to avoid empty result
-	$country_without_tilde = delete_tilde($country);
-	// Adapt the spaces to avoid empty result
-	$formatted_country = str_replace(' ', '%20', $country_without_tilde);
-	
-	return array(
-		"city"		=> $formatted_city,
-		"country"	=> $formatted_country
-	);
-}
-
-function preview_remote_results($remote_data)
-{
-	$area = empty($remote_data["geojson"]) ? "NO" : "YES";
-	print_r($area . "\t\t" . $remote_data["population"] . "\t\t" . $remote_data["continent"] . "\n");
-	//print_r("=> DB: City: " . $city . ", Country: " . $country . "\n\n");
-}
-
-function preview_remote_results_header()
-{
-	print_r("HAS AREA\tPOPULATION\tCONTINENT\n");
 }
 
 
@@ -355,10 +316,10 @@ function delete_tilde($chain)
 		array('u', 'u', 'u', 'u', 'U', 'U', 'U', 'U'),
 		$chain );
 
-	$chain = str_replace(
+	/*$chain = str_replace(
 		array('ñ', 'Ñ', 'ç', 'Ç'),
 		array('n', 'N', 'c', 'C'),
-		$chain );
+		$chain );*/
 
 	return $chain;
 }
@@ -429,4 +390,66 @@ function get_community_file($file_name)
 	// Decode the JSON file
 	$community = json_decode($community_json, true);
 	return $community;
+}
+
+
+
+########################################
+##### NOT IN USE. DEPRECATED ###########
+########################################
+
+/**
+ * In nominatim not all the addresses has city. They might have instead village or town
+ * @param $address: The object that has the location metadata
+ */
+function get_city($address)
+{
+	if (property_exists($address, "city"))
+	{
+		return $address->city;
+	}
+	else if (property_exists($address, "village"))
+	{
+		return $address->village;
+	} 
+	else if (property_exists($address, "town"))
+	{
+		return $address->town;
+	}
+	return "";
+}
+
+/**
+ * If we have composed location format spaces and tildes in case it has
+ * @param $city
+ * @param $country
+ */
+function encode_community_location($city, $country)
+{
+	//print_r("DB => City: ". $city . ", Country: " . $country . "\n");
+	// Delete tildes to avoid empty result
+	$city_without_tilde = delete_tilde($city);
+	// Adapt the spaces to avoid empty result
+	$formatted_city = str_replace(' ', '%20', $city_without_tilde);
+	// Delete tildes to avoid empty result
+	$country_without_tilde = delete_tilde($country);
+	// Adapt the spaces to avoid empty result
+	$formatted_country = str_replace(' ', '%20', $country_without_tilde);
+	
+	return array(
+		"city"		=> $formatted_city,
+		"country"	=> $formatted_country
+	);
+}
+
+function preview_remote_results($remote_data)
+{
+	$area = empty($remote_data["geojson"]) ? "NO" : "YES";
+	print_r($area . "\t\t" . $remote_data["population"] . "\t\t" . $remote_data["continent"] . "\n\n");
+	//print_r("=> DB: City: " . $city . ", Country: " . $country . "\n\n");
+}
+
+function preview_remote_results_header()
+{
+	print_r("HAS AREA\tPOPULATION\tCONTINENT\n");
 }

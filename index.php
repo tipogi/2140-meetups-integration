@@ -5,6 +5,7 @@
 
 	const CREATE_LEAFLET_JSON = false;
 	const CREATE_BTCMAP_JSON = true;
+	const UNIT_JSON = false;
 	const SHOW_OSM_ID_COMMUNITY = false;
 
 	const COMMUNITIES_ENDPOINT = "http://2140meetups.com/wp-json/wp/v2/community?per_page=100";
@@ -13,6 +14,12 @@
 	function main()
 	{
 		$communities = fetch_all_the_communities();
+
+		if (empty($communities))
+		{
+			print_r("We cannot fetch the communities. It was a problem...");
+			exit;
+		}
 
 		if (CREATE_LEAFLET_JSON)
 		{
@@ -38,14 +45,11 @@
 		if (CREATE_BTCMAP_JSON)
 		{
 
-			$new_communities = array();
-
-			print_r("\nTotal communities in 2140meetups: " . count($communities) . "\n");
-			// Add the header for BTC Maps JSON files
-			preview_remote_results_header();
-
-			foreach ($communities as $key => $community) 
+			if (UNIT_JSON)
 			{
+				$key = 16;
+				$community = $communities[$key];
+				// Create new community
 				$new_community = array(
 					"id"		=> $community->id,
 					"osm_id"	=> $community->osm_id,
@@ -56,10 +60,33 @@
 					"ciudad"	=> $community->ciudad,
 					"pais"		=> $community->pais,
 				);
-
+				// Fetch the requested data
 				generate_area_from_btcmaps($new_community);
-				// #NEW: There is a rate limit to get country continent: 10 per 1 minute
-				sleep(5);
+			}
+			else
+			{
+				print_r("\nTotal communities in 2140meetups: " . count($communities) . "\n");
+				// Add the header for BTC Maps JSON files
+				preview_remote_results_header();
+	
+				foreach ($communities as $key => $community) 
+				{
+					print_r("The ". $community->slug . " ( " . $community->ciudad . " ) community index is " . $key . "\n");
+					$new_community = array(
+						"id"		=> $community->id,
+						"osm_id"	=> $community->osm_id,
+						"email"		=> "privacy@policy.org",
+						"telegram"	=> $community->telegram,
+						"imagen"	=> "https://2140meetups.com/wp-content/uploads/2023/02/639b9f9c3841d3112e52d79a_website-banner-image3-p-2000.png",
+						"nombre"	=> $community->slug,
+						"ciudad"	=> $community->ciudad,
+						"pais"		=> $community->pais,
+					);
+	
+					generate_area_from_btcmaps($new_community);
+					// #NEW: There is a rate limit to get country continent: 10 per 1 minute
+					sleep(5);
+				}
 			}
 
 			print_r("\nEND creating BTCMAP JSON");
